@@ -14,6 +14,7 @@ import {
   CreatureSpecies,
   ElementType,
   EnemySoldier,
+  FloatingCombatText,
   GameState,
   LevelObjective,
   PetCommand,
@@ -21,8 +22,10 @@ import {
   ResourceNode,
   ResourceType,
   SoldierArchetype,
+  SpellProjectile,
   Teammate,
   TeammateRole,
+  TrainingDummy,
   TreasureChest,
   Vector3D,
   WildCreature,
@@ -44,6 +47,22 @@ export function addNotification(
     ...state.notifications,
   ].slice(0, 5);
   return { ...state, notifications: next };
+}
+
+export function addFloatingText(
+  state: GameState,
+  text: string,
+  pos: Vector3D,
+  color = '#ffffff'
+): FloatingCombatText[] {
+  const newText: FloatingCombatText = {
+    id: `ft_${Date.now()}_${Math.random()}`,
+    text,
+    position: { x: pos.x, y: (pos.y || 1) + 1.2, z: pos.z },
+    color,
+    life: 1.8,
+  };
+  return [...state.floatingTexts.slice(-12), newText];
 }
 
 export function createLevelObjectives(level: number): LevelObjective[] {
@@ -112,6 +131,43 @@ export function createLevelObjectives(level: number): LevelObjective[] {
 
 export function generateResourceNodesForLevel(level: number): ResourceNode[] {
   const nodes: ResourceNode[] = [];
+
+  // Immediate starter nodes right near the player's camp spawn
+  if (level === 1) {
+    nodes.push(
+      {
+        id: `node_starter_pine`,
+        type: 'wood',
+        label: 'Starter Enchanted Pine',
+        position: { x: 3.5, y: 0, z: 6.5 },
+        amount: 3,
+        maxAmount: 3,
+        respawnTimer: 0,
+        requiredLevel: 1,
+      },
+      {
+        id: `node_starter_berries`,
+        type: 'berries',
+        label: 'Wildberry Bush (Wolf Food)',
+        position: { x: -3.5, y: 0, z: 6.5 },
+        amount: 3,
+        maxAmount: 3,
+        respawnTimer: 0,
+        requiredLevel: 1,
+      },
+      {
+        id: `node_starter_granite`,
+        type: 'stone',
+        label: 'Granite Outcrop',
+        position: { x: 5.5, y: 0, z: 3.5 },
+        amount: 3,
+        maxAmount: 3,
+        respawnTimer: 0,
+        requiredLevel: 1,
+      }
+    );
+  }
+
   const ringPositions: {
     type: ResourceType;
     label: string;
@@ -119,15 +175,15 @@ export function generateResourceNodesForLevel(level: number): ResourceNode[] {
     count: number;
     minLvl: number;
   }[] = [
-    { type: 'wood', label: 'Enchanted Pine', radius: 18, count: 7, minLvl: 1 },
-    { type: 'berries', label: 'Wildberry Bush', radius: 20, count: 5, minLvl: 1 },
-    { type: 'stone', label: 'Granite Outcrop', radius: 24, count: 6, minLvl: 1 },
-    { type: 'coal', label: 'Coal Seam', radius: 28, count: 4, minLvl: 1 },
-    { type: 'herbs', label: 'Moonleaf Herb', radius: 22, count: 4, minLvl: 1 },
-    { type: 'minerals', label: 'Iron-Quartz Vein', radius: 32, count: 4, minLvl: 2 },
-    { type: 'crystals', label: 'Aether Crystal Spire', radius: 36, count: 4, minLvl: 3 },
-    { type: 'ancientCore', label: 'Primordial Core Pedestal', radius: 40, count: 2, minLvl: 4 },
-    { type: 'dragonRelic', label: 'Draconic Altar Relic', radius: 38, count: 2, minLvl: 5 },
+    { type: 'wood', label: 'Enchanted Pine', radius: 16, count: 7, minLvl: 1 },
+    { type: 'berries', label: 'Wildberry Bush', radius: 18, count: 5, minLvl: 1 },
+    { type: 'stone', label: 'Granite Outcrop', radius: 22, count: 6, minLvl: 1 },
+    { type: 'coal', label: 'Coal Seam', radius: 26, count: 4, minLvl: 1 },
+    { type: 'herbs', label: 'Moonleaf Herb', radius: 20, count: 4, minLvl: 1 },
+    { type: 'minerals', label: 'Iron-Quartz Vein', radius: 30, count: 4, minLvl: 2 },
+    { type: 'crystals', label: 'Aether Crystal Spire', radius: 34, count: 4, minLvl: 3 },
+    { type: 'ancientCore', label: 'Primordial Core Pedestal', radius: 38, count: 2, minLvl: 4 },
+    { type: 'dragonRelic', label: 'Draconic Altar Relic', radius: 36, count: 2, minLvl: 5 },
   ];
 
   let idx = 1;
@@ -160,15 +216,15 @@ export function generateChestsForLevel(level: number): TreasureChest[] {
     {
       id: `chest_${level}_common_1`,
       rarity: 'common',
-      position: { x: 25, y: 0, z: 22 },
+      position: { x: 22, y: 0, z: 20 },
       opened: false,
       coins: 35 + level * 15,
-      resources: { wood: 5, stone: 4, berries: 2 },
+      resources: { wood: 5, stone: 4, berries: 3 },
     },
     {
       id: `chest_${level}_common_2`,
       rarity: 'common',
-      position: { x: -27, y: 0, z: 19 },
+      position: { x: -24, y: 0, z: 18 },
       opened: false,
       coins: 40 + level * 15,
       resources: { coal: 4, herbs: 3, minerals: 2 },
@@ -176,7 +232,7 @@ export function generateChestsForLevel(level: number): TreasureChest[] {
     {
       id: `chest_${level}_rare_1`,
       rarity: 'rare',
-      position: { x: -32, y: 0, z: -28 },
+      position: { x: -30, y: 0, z: -25 },
       opened: false,
       coins: 80 + level * 25,
       resources: {
@@ -196,10 +252,11 @@ export function generateWildCreaturesForLevel(level: number): WildCreature[] {
     ...cfg.extraCreatures,
   ];
 
+  // Make the primary target creature close by so player can easily engage in assisted taming
   const coords = [
-    { x: 19, y: 0, z: -16 },
-    { x: -22, y: 0, z: 15 },
-    { x: 26, y: 0, z: 12 },
+    { x: 10, y: 0, z: 9 },   // Right near the perimeter
+    { x: -16, y: 0, z: 12 },
+    { x: 20, y: 0, z: -10 },
   ];
 
   return speciesList.map((spec, idx) => {
@@ -251,6 +308,27 @@ export function createInitialBuildings(): Record<BuildingId, BuildingState> {
   return Object.fromEntries(entries) as Record<BuildingId, BuildingState>;
 }
 
+export function createInitialTrainingDummies(): TrainingDummy[] {
+  return [
+    {
+      id: 'dummy_1',
+      name: 'Corrupted Thorn Creeper (Target Dummy)',
+      position: { x: 0, y: 0, z: 9 }, // Directly in front of the player (spawn at 0, 0, 5)
+      hp: 150,
+      maxHp: 150,
+      hitReaction: 0,
+    },
+    {
+      id: 'dummy_2',
+      name: 'Forest Straw Target Dummy',
+      position: { x: -6, y: 0, z: 8 },
+      hp: 150,
+      maxHp: 150,
+      hitReaction: 0,
+    },
+  ];
+}
+
 export function createInitialGameState(startLevel = 1): GameState {
   const unlockedElements: ElementType[] = (
     ['fire', 'water', 'wind', 'ice', 'earth'] as ElementType[]
@@ -263,6 +341,7 @@ export function createInitialGameState(startLevel = 1): GameState {
     timeOfDay: 9.5,
     score: 100,
     wildlifeViolations: 0,
+    assistedStep: 1, // 1: Gather Wood, 2: Stoke Fire, 3: Armory & Strike, 4: Tame Beast, 5: Defend Sanctuary
 
     player: {
       position: { x: 0, y: 0, z: 5 },
@@ -312,7 +391,7 @@ export function createInitialGameState(startLevel = 1): GameState {
     teammates: [
       {
         id: 'ally_1',
-        name: 'Lyra (Scout)',
+        name: 'Lyra (Ranger Scout)',
         role: 'guard',
         hp: 110,
         maxHp: 110,
@@ -322,7 +401,7 @@ export function createInitialGameState(startLevel = 1): GameState {
       },
       {
         id: 'ally_2',
-        name: 'Rowan (Warden)',
+        name: 'Rowan (Forest Warden)',
         role: 'gather',
         hp: 110,
         maxHp: 110,
@@ -333,10 +412,13 @@ export function createInitialGameState(startLevel = 1): GameState {
     ],
     soldiers: [],
     lootDrops: [],
+    trainingDummies: createInitialTrainingDummies(),
+    projectiles: [],
+    floatingTexts: [],
 
     raid: {
       waveNumber: 1,
-      countdown: 55,
+      countdown: 65,
       active: false,
       finalSiegeUnlocked: false,
       finalSiegeCompleted: false,
@@ -359,7 +441,7 @@ export function createInitialGameState(startLevel = 1): GameState {
     notifications: [
       {
         id: 'welcome',
-        text: 'Welcome to Elemental Sorcerers! Gather wood, tend the campfire, and protect wildlife.',
+        text: 'Welcome to Elemental Sorcerers! Follow the Golden Quest Waypoint to begin your journey.',
         tone: 'info',
       },
     ],
@@ -384,8 +466,8 @@ export function gatherFromNode(state: GameState, nodeId: string): GameState {
   }
 
   const dist = distance2D(state.player.position, node.position);
-  if (dist > 6.5) {
-    return addNotification(state, 'Move closer to gather from this resource node.', 'warn');
+  if (dist > 8.5) {
+    return addNotification(state, 'Walk closer to gather from this node (Follow the marker).', 'warn');
   }
 
   const storageBonus = state.buildings.storage?.level || 0;
@@ -410,6 +492,9 @@ export function gatherFromNode(state: GameState, nodeId: string): GameState {
     return obj;
   });
 
+  const nextAssisted = state.assistedStep === 1 ? 2 : state.assistedStep;
+  const texts = addFloatingText(state, `+${yieldAmount} ${node.type}`, node.position, '#10b981');
+
   const nextState: GameState = {
     ...state,
     score: state.score + 5,
@@ -418,18 +503,25 @@ export function gatherFromNode(state: GameState, nodeId: string): GameState {
       [node.type]: (state.inventory[node.type] || 0) + yieldAmount,
     },
     resourceNodes: updatedNodes,
+    floatingTexts: texts,
+    assistedStep: nextAssisted,
     objectives: checkFinalEncounterUnlock({ ...state, objectives: updatedObjectives }),
     tutorialStep: state.tutorialStep === 1 ? 2 : state.tutorialStep,
   };
 
   return addNotification(
     nextState,
-    `Gathered +${yieldAmount} ${node.type} from ${node.label}.`,
+    `Gathered +${yieldAmount} ${node.type} from ${node.label}! Now stoke the Campfire Hearth.`,
     'success'
   );
 }
 
 export function stokeCampfire(state: GameState, useBasicWoodFallback = false): GameState {
+  const dist = distance2D(state.player.position, { x: 0, y: 0, z: 0 });
+  if (dist > 8.5) {
+    return addNotification(state, 'Walk closer to the central Campfire Hearth to stoke it.', 'warn');
+  }
+
   const tierCfg = CAMPFIRE_TIERS[state.campfire.tier];
   const fuelType: ResourceType = useBasicWoodFallback ? 'wood' : tierCfg.primaryFuel;
 
@@ -437,7 +529,7 @@ export function stokeCampfire(state: GameState, useBasicWoodFallback = false): G
     if (!useBasicWoodFallback && (state.inventory.wood || 0) >= 1) {
       return stokeCampfire(state, true);
     }
-    return addNotification(state, `Not enough ${fuelType} (or wood) to stoke the campfire!`, 'warn');
+    return addNotification(state, `Not enough ${fuelType} (or wood) in inventory! Gather from trees first.`, 'warn');
   }
 
   const addedFuel = useBasicWoodFallback ? 25 : tierCfg.fuelGain;
@@ -450,6 +542,9 @@ export function stokeCampfire(state: GameState, useBasicWoodFallback = false): G
     return obj;
   });
 
+  const nextAssisted = state.assistedStep === 2 ? 3 : state.assistedStep;
+  const texts = addFloatingText(state, `+${addedFuel} Fuel 🔥`, { x: 0, y: 1.5, z: 0 }, '#f97316');
+
   const next: GameState = {
     ...state,
     inventory: {
@@ -461,13 +556,15 @@ export function stokeCampfire(state: GameState, useBasicWoodFallback = false): G
       fuel: newFuel,
       isBurning: newFuel > 0,
     },
+    floatingTexts: texts,
+    assistedStep: nextAssisted,
     objectives: checkFinalEncounterUnlock({ ...state, objectives: updatedObjectives }),
     tutorialStep: state.tutorialStep === 2 ? 3 : state.tutorialStep,
   };
 
   return addNotification(
     next,
-    `Added ${fuelType} to campfire (+${addedFuel} fuel). Fire is burning brightly!`,
+    `Added ${fuelType} to campfire (+${addedFuel} fuel). Protective aura is strong!`,
     'success'
   );
 }
@@ -608,19 +705,26 @@ export function buyWeaponFromShop(state: GameState, weaponId: string): GameState
 
   const alreadyOwned = state.player.ownedWeapons.some((w) => w.id === weaponId);
   if (alreadyOwned) {
-    return {
-      ...state,
-      player: {
-        ...state.player,
-        equippedWeapon: weapon,
+    const nextAssisted = state.assistedStep === 3 ? 4 : state.assistedStep;
+    return addNotification(
+      {
+        ...state,
+        player: {
+          ...state.player,
+          equippedWeapon: weapon,
+        },
+        assistedStep: nextAssisted,
       },
-    };
+      `Equipped ${weapon.name} to hand! Staff energy attuned.`,
+      'success'
+    );
   }
 
   if (state.player.coins < weapon.price) {
     return addNotification(state, `Need ${weapon.price} coins to purchase ${weapon.name}.`, 'warn');
   }
 
+  const nextAssisted = state.assistedStep === 3 ? 4 : state.assistedStep;
   return addNotification(
     {
       ...state,
@@ -630,6 +734,7 @@ export function buyWeaponFromShop(state: GameState, weaponId: string): GameState
         ownedWeapons: [...state.player.ownedWeapons, weapon],
         equippedWeapon: weapon,
       },
+      assistedStep: nextAssisted,
     },
     `Purchased and equipped ${weapon.name}!`,
     'success'
@@ -680,6 +785,8 @@ export function openTreasureChest(state: GameState, chestId: string): GameState 
     nextInv[r] = (nextInv[r] || 0) + (v || 0);
   }
 
+  const texts = addFloatingText(state, `+${chest.coins} Coins 🪙`, chest.position, '#facc15');
+
   return addNotification(
     {
       ...state,
@@ -690,6 +797,7 @@ export function openTreasureChest(state: GameState, chestId: string): GameState 
       },
       inventory: nextInv,
       chests: nextChests,
+      floatingTexts: texts,
     },
     `Opened ${chest.rarity.toUpperCase()} Chest! Found +${chest.coins} coins and supplies!`,
     'success'
@@ -721,6 +829,8 @@ export function startHospitalTreatment(state: GameState): GameState {
     hp: t.maxHp,
   }));
 
+  const texts = addFloatingText(state, `+Full HP Restored ✨`, state.player.position, '#34d399');
+
   return addNotification(
     {
       ...state,
@@ -736,6 +846,7 @@ export function startHospitalTreatment(state: GameState): GameState {
       },
       pets: revivedPets,
       teammates: revivedAllies,
+      floatingTexts: texts,
     },
     'Hospital treatment complete: Player, Pets, and Teammates fully restored!',
     'success'
@@ -757,16 +868,16 @@ export function observeWildCreature(state: GameState, creatureId: string): GameS
     taming: {
       ...c.taming,
       stage: c.taming.stage === 'unstarted' ? 'observed' : c.taming.stage,
-      trust: Math.max(c.taming.trust, 20),
+      trust: Math.max(c.taming.trust, 25),
       failureReason: undefined,
     },
   };
 
+  const texts = addFloatingText(state, `Observed! +25 Trust`, c.position, '#38bdf8');
+
   return addNotification(
-    { ...state, wildCreatures: updated },
-    `Observed ${c.name}: Needs ${c.offeringAmount} ${c.requiredOffering} then ${c.preferredElements
-      .map((e) => e.toUpperCase())
-      .join(' → ')}.`,
+    { ...state, wildCreatures: updated, floatingTexts: texts },
+    `Observed ${c.name}: Step 1/4 done! Next offer ${c.offeringAmount} ${c.requiredOffering}.`,
     'info'
   );
 }
@@ -776,10 +887,10 @@ export function offerFoodToCreature(state: GameState, creatureId: string): GameS
   if (idx === -1) return state;
   const c = state.wildCreatures[idx];
 
-  if (distance2D(state.player.position, c.position) > 9) {
+  if (distance2D(state.player.position, c.position) > 10) {
     return addNotification(
       state,
-      `Approach within 9m of ${c.name} to offer ${c.requiredOffering}.`,
+      `Walk within 10m of ${c.name} to offer ${c.requiredOffering}.`,
       'warn'
     );
   }
@@ -795,7 +906,7 @@ export function offerFoodToCreature(state: GameState, creatureId: string): GameS
     };
     return addNotification(
       { ...state, wildCreatures: updatedFail },
-      `You need ${c.offeringAmount} ${c.requiredOffering} to feed ${c.name}.`,
+      `You need ${c.offeringAmount} ${c.requiredOffering} to feed ${c.name}. Gather more from the forest!`,
       'warn'
     );
   }
@@ -807,11 +918,13 @@ export function offerFoodToCreature(state: GameState, creatureId: string): GameS
     taming: {
       ...c.taming,
       stage: 'offered',
-      trust: Math.min(100, Math.max(45, c.taming.trust + 30)),
+      trust: Math.min(100, Math.max(50, c.taming.trust + 30)),
       requiredElementIndex: 0,
       failureReason: undefined,
     },
   };
+
+  const texts = addFloatingText(state, `Accepted ${c.requiredOffering}! +30 Trust`, c.position, '#facc15');
 
   return addNotification(
     {
@@ -821,8 +934,9 @@ export function offerFoodToCreature(state: GameState, creatureId: string): GameS
         [c.requiredOffering]: state.inventory[c.requiredOffering] - c.offeringAmount,
       },
       wildCreatures: updated,
+      floatingTexts: texts,
     },
-    `${c.name} accepted your ${c.requiredOffering}! Now attune with ${c.preferredElements[0].toUpperCase()}.`,
+    `${c.name} accepted your offering! Step 2/4 done. Now cast ${c.preferredElements[0].toUpperCase()}!`,
     'success'
   );
 }
@@ -847,7 +961,7 @@ export function applyElementalTamingInteraction(
     };
     return addNotification(
       { ...state, wildCreatures: updatedWarn },
-      `Observe and offer ${c.requiredOffering} to ${c.name} before elemental attunement!`,
+      `Observe and offer food to ${c.name} before elemental attunement!`,
       'warn'
     );
   }
@@ -863,12 +977,12 @@ export function applyElementalTamingInteraction(
         stage: 'observed',
         trust: Math.max(0, c.taming.trust - 25),
         requiredElementIndex: 0,
-        failureReason: `Wrong element (${element.toUpperCase()} instead of ${expectedElement.toUpperCase()})! Offering lost & creature agitated.`,
+        failureReason: `Wrong element (${element.toUpperCase()} instead of ${expectedElement.toUpperCase()})!`,
       },
     };
     return addNotification(
       { ...state, wildCreatures: updatedWrong },
-      `Taming setback! ${c.name} wanted ${expectedElement.toUpperCase()}, not ${element.toUpperCase()}!`,
+      `Setback! ${c.name} requires ${expectedElement.toUpperCase()}, not ${element.toUpperCase()}!`,
       'danger'
     );
   }
@@ -889,18 +1003,20 @@ export function applyElementalTamingInteraction(
     },
   };
 
+  const texts = addFloatingText(state, `Attuned with ${element.toUpperCase()}! ✨`, c.position, '#38bdf8');
+
   if (!allElementsDone) {
     const nextElem = c.taming.elementSequence[nextElemIdx];
     return addNotification(
-      { ...state, wildCreatures: updated },
-      `Stage ${nextElemIdx}/${c.taming.elementSequence.length} complete! Next cast ${nextElem.toUpperCase()} on ${c.name}!`,
+      { ...state, wildCreatures: updated, floatingTexts: texts },
+      `Stage ${nextElemIdx}/${c.taming.elementSequence.length} complete! Next cast ${nextElem.toUpperCase()}!`,
       'info'
     );
   }
 
   return addNotification(
-    { ...state, wildCreatures: updated },
-    `${c.name} is attuned! Lock the Trust Timing Ring inside the green zone to complete taming!`,
+    { ...state, wildCreatures: updated, floatingTexts: texts },
+    `${c.name} is attuned! Step 4/4: Click 'Lock Trust Ring' inside the green sweet spot!`,
     'success'
   );
 }
@@ -933,7 +1049,7 @@ export function completeTamingTimingChallenge(
     };
     return addNotification(
       { ...state, wildCreatures: updatedFail },
-      `Trust timing missed (${Math.round(actualCursor)}%)! ${c.name} broke free and grew agitated.`,
+      `Trust timing missed (${Math.round(actualCursor)}%)! Try again and lock inside the green zone.`,
       'warn'
     );
   }
@@ -965,29 +1081,29 @@ export function completeTamingTimingChallenge(
     return obj;
   });
 
+  const texts = addFloatingText(state, `TAMED ${newPet.name}! 🌟`, c.position, '#10b981');
+  const nextAssisted = state.assistedStep === 4 ? 5 : state.assistedStep;
+
   const next: GameState = {
     ...state,
     score: state.score + (c.species === 'dragon' ? 200 : 75),
     wildCreatures: remainingWild,
     pets: [...state.pets, newPet],
+    floatingTexts: texts,
+    assistedStep: nextAssisted,
     objectives: checkFinalEncounterUnlock({ ...state, objectives: updatedObjectives }),
     tutorialStep: state.tutorialStep === 3 ? 4 : state.tutorialStep,
   };
 
   return addNotification(
     next,
-    `Tamed ${newPet.name}! Added to your Companion Roster (${
-      newPet.active ? 'Active' : 'Guarding Camp'
+    `Tamed ${newPet.name}! Joined your Companion Roster (${
+      newPet.active ? 'Active Squad' : 'Defending Camp'
     }).`,
     'success'
   );
 }
 
-/**
- * Wildlife Protection Rule:
- * Deliberate prohibited lethal strike against wild creatures is strictly forbidden.
- * Reduces score (-60) and player HP (-40); repeated violations kill the player.
- */
 export function executeProhibitedWildlifeStrike(state: GameState, creatureId: string): GameState {
   const idx = state.wildCreatures.findIndex((c) => c.id === creatureId);
   if (idx === -1) return state;
@@ -1029,7 +1145,6 @@ export function executeProhibitedWildlifeStrike(state: GameState, creatureId: st
 // ============================================================================
 
 export function triggerImmortalEncounter(state: GameState, type: 'owl' | 'deer'): GameState {
-  // Never spawn simultaneously
   if (state.immortalEncounter.activeType !== 'none') {
     return state;
   }
@@ -1052,7 +1167,7 @@ export function triggerImmortalEncounter(state: GameState, type: 'owl' | 'deer')
         ...state.immortalEncounter,
         activeType: type,
         phase: 'warning',
-        timer: 2.5, // 2.5s warning window before active danger
+        timer: 2.5,
         originPosition: origin,
         escapeProgress: 0,
         owlTutorialSeen: type === 'owl' ? true : state.immortalEncounter.owlTutorialSeen,
@@ -1215,7 +1330,7 @@ export function updateImmortalEncounter(
 }
 
 // ============================================================================
-// ELEMENTAL ABILITIES & COMBAT
+// ELEMENTAL ABILITIES & COMBAT WITH VISUAL PROJECTILES
 // ============================================================================
 
 export function castElementalAbility(state: GameState, element?: ElementType): GameState {
@@ -1232,8 +1347,26 @@ export function castElementalAbility(state: GameState, element?: ElementType): G
     return addNotification(state, `Not enough Elemental Energy for ${cfg.name}!`, 'warn');
   }
 
+  // Spawn visual 3D projectile forward
+  const forwardX = Math.sin(state.player.rotationY) * cfg.range;
+  const forwardZ = -Math.cos(state.player.rotationY) * cfg.range;
+  const newProj: SpellProjectile = {
+    id: `proj_${Date.now()}_${Math.random()}`,
+    element: chosen,
+    startPos: { x: state.player.position.x, y: 1.5, z: state.player.position.z },
+    targetPos: {
+      x: state.player.position.x + forwardX,
+      y: 1.0,
+      z: state.player.position.z + forwardZ,
+    },
+    currentPos: { x: state.player.position.x, y: 1.5, z: state.player.position.z },
+    progress: 0,
+    color: cfg.hex,
+  };
+
   let nextState: GameState = {
     ...state,
+    projectiles: [...state.projectiles.slice(-6), newProj],
     player: {
       ...state.player,
       activeElement: chosen,
@@ -1254,7 +1387,7 @@ export function castElementalAbility(state: GameState, element?: ElementType): G
   }
 
   // 2. Special Elemental Utility Effects
-  if (chosen === 'fire' && distance2D(nextState.player.position, { x: 0, y: 0, z: 0 }) <= 12) {
+  if (chosen === 'fire' && distance2D(nextState.player.position, { x: 0, y: 0, z: 0 }) <= 14) {
     const newFuel = Math.min(nextState.campfire.maxFuel, nextState.campfire.fuel + 18);
     nextState = {
       ...nextState,
@@ -1263,6 +1396,7 @@ export function castElementalAbility(state: GameState, element?: ElementType): G
         fuel: newFuel,
         isBurning: true,
       },
+      floatingTexts: addFloatingText(nextState, '+18 Campfire Fuel 🔥', { x: 0, y: 2, z: 0 }, '#f97316'),
     };
   }
 
@@ -1281,6 +1415,7 @@ export function castElementalAbility(state: GameState, element?: ElementType): G
         ...t,
         hp: t.incapacitated ? t.hp : Math.min(t.maxHp, t.hp + 32),
       })),
+      floatingTexts: addFloatingText(nextState, '+32 HP Heal 💧', nextState.player.position, '#38bdf8'),
     };
   }
 
@@ -1291,6 +1426,7 @@ export function castElementalAbility(state: GameState, element?: ElementType): G
         ...nextState.player,
         stamina: Math.min(nextState.player.maxStamina, nextState.player.stamina + 35),
       },
+      floatingTexts: addFloatingText(nextState, '+35 Stamina Surge 🍃', nextState.player.position, '#34d399'),
     };
   }
 
@@ -1302,21 +1438,32 @@ export function castElementalAbility(state: GameState, element?: ElementType): G
         hp: Math.min(healedBuildings[id].maxHp, healedBuildings[id].hp + 35),
       };
     });
-    nextState = { ...nextState, buildings: healedBuildings };
+    nextState = {
+      ...nextState,
+      buildings: healedBuildings,
+      floatingTexts: addFloatingText(nextState, '+35 Camp Fortification 🛡️', { x: 0, y: 2, z: -4 }, '#facc15'),
+    };
   }
 
-  // 3. Offensive Effect strictly against Enemy Soldiers (never damages wildlife or pets)
+  // 3. Offensive Effect strictly against Enemy Soldiers and Training Dummies
   const weaponBonus = nextState.player.equippedWeapon.elementBonus === chosen ? 1.25 : 1.0;
   const damage = Math.round(cfg.combatDamage * weaponBonus);
 
   const updatedSoldiers: EnemySoldier[] = [];
   const newDrops = [...nextState.lootDrops];
+  let updatedTexts = nextState.floatingTexts;
   let scoreGain = 0;
 
   for (const s of nextState.soldiers) {
     const d = distance2D(nextState.player.position, s.position);
     if (d <= cfg.range) {
       const nextHp = s.hp - damage;
+      updatedTexts = addFloatingText(
+        { ...nextState, floatingTexts: updatedTexts },
+        `-${damage}`,
+        s.position,
+        cfg.color
+      );
       if (nextHp <= 0) {
         scoreGain += 25;
         newDrops.push({
@@ -1348,11 +1495,27 @@ export function castElementalAbility(state: GameState, element?: ElementType): G
     }
   }
 
+  // Hit test training dummies
+  const updatedDummies = nextState.trainingDummies.map((dm) => {
+    if (distance2D(nextState.player.position, dm.position) <= cfg.range) {
+      updatedTexts = addFloatingText(
+        { ...nextState, floatingTexts: updatedTexts },
+        `-${damage} (Training Dummy)`,
+        dm.position,
+        cfg.color
+      );
+      return { ...dm, hitReaction: 1.0 };
+    }
+    return dm;
+  });
+
   nextState = {
     ...nextState,
     score: nextState.score + scoreGain,
     soldiers: updatedSoldiers,
     lootDrops: newDrops,
+    trainingDummies: updatedDummies,
+    floatingTexts: updatedTexts,
   };
 
   return checkRaidCompletion(nextState);
@@ -1362,15 +1525,40 @@ export function performPrimaryAttack(state: GameState): GameState {
   if (state.player.primaryCooldown > 0) return state;
 
   const weapon = state.player.equippedWeapon;
+  const forwardX = Math.sin(state.player.rotationY) * (weapon.range + 2);
+  const forwardZ = -Math.cos(state.player.rotationY) * (weapon.range + 2);
+
+  // Spawn visual Staff Arcane Bolt
+  const newProj: SpellProjectile = {
+    id: `proj_staff_${Date.now()}_${Math.random()}`,
+    element: 'arcane',
+    startPos: { x: state.player.position.x, y: 1.4, z: state.player.position.z },
+    targetPos: {
+      x: state.player.position.x + forwardX,
+      y: 1.0,
+      z: state.player.position.z + forwardZ,
+    },
+    currentPos: { x: state.player.position.x, y: 1.4, z: state.player.position.z },
+    progress: 0,
+    color: 0x38bdf8,
+  };
+
   const updatedSoldiers: EnemySoldier[] = [];
   const newDrops = [...state.lootDrops];
+  let updatedTexts = state.floatingTexts;
   let hitCount = 0;
 
   for (const s of state.soldiers) {
     const d = distance2D(state.player.position, s.position);
-    if (d <= weapon.range + 1.2) {
+    if (d <= weapon.range + 1.8) {
       hitCount++;
       const nextHp = s.hp - weapon.damage;
+      updatedTexts = addFloatingText(
+        { ...state, floatingTexts: updatedTexts },
+        `-${weapon.damage}`,
+        s.position,
+        '#ef4444'
+      );
       if (nextHp <= 0) {
         newDrops.push({
           id: `drop_${s.id}_${Date.now()}_${Math.random()}`,
@@ -1386,6 +1574,23 @@ export function performPrimaryAttack(state: GameState): GameState {
     }
   }
 
+  // Hit test training dummies
+  const updatedDummies = state.trainingDummies.map((dm) => {
+    if (distance2D(state.player.position, dm.position) <= weapon.range + 2.0) {
+      hitCount++;
+      updatedTexts = addFloatingText(
+        { ...state, floatingTexts: updatedTexts },
+        `-${weapon.damage} (Staff Hit)`,
+        dm.position,
+        '#38bdf8'
+      );
+      return { ...dm, hitReaction: 1.0 };
+    }
+    return dm;
+  });
+
+  const nextAssisted = state.assistedStep === 3 ? 4 : state.assistedStep;
+
   const nextState: GameState = {
     ...state,
     score: state.score + hitCount * 10,
@@ -1393,8 +1598,12 @@ export function performPrimaryAttack(state: GameState): GameState {
       ...state.player,
       primaryCooldown: Number((1 / weapon.attackSpeed).toFixed(2)),
     },
+    projectiles: [...state.projectiles.slice(-6), newProj],
     soldiers: updatedSoldiers,
+    trainingDummies: updatedDummies,
     lootDrops: newDrops,
+    floatingTexts: updatedTexts,
+    assistedStep: nextAssisted,
   };
 
   return checkRaidCompletion(nextState);
@@ -1403,11 +1612,18 @@ export function performPrimaryAttack(state: GameState): GameState {
 export function collectNearbyLoot(state: GameState): GameState {
   let coinsAdded = 0;
   let collectedCount = 0;
+  let updatedTexts = state.floatingTexts;
 
   const remainingDrops = state.lootDrops.map((drop) => {
-    if (!drop.collected && distance2D(state.player.position, drop.position) <= 7.5) {
+    if (!drop.collected && distance2D(state.player.position, drop.position) <= 8.0) {
       coinsAdded += drop.coins;
       collectedCount++;
+      updatedTexts = addFloatingText(
+        { ...state, floatingTexts: updatedTexts },
+        `+${drop.coins} 🪙`,
+        drop.position,
+        '#facc15'
+      );
       return { ...drop, collected: true };
     }
     return drop;
@@ -1423,6 +1639,7 @@ export function collectNearbyLoot(state: GameState): GameState {
         coins: state.player.coins + coinsAdded,
       },
       lootDrops: remainingDrops.filter((d) => !d.collected),
+      floatingTexts: updatedTexts,
     },
     `Collected +${coinsAdded} coins from ${collectedCount} defeated soldier drop(s)!`,
     'success'
@@ -1454,7 +1671,7 @@ export function spawnRaidWave(state: GameState, isFinalEncounter = false): GameS
       ? ['melee', 'ranged', 'heavy', 'heavy', 'siege']
       : ['melee', 'ranged', 'heavy', 'heavy', 'siege', 'siege'];
 
-  const fireMult = state.campfire.isBurning ? 1.0 : 1.25; // Extinguished fire buffs soldiers
+  const fireMult = state.campfire.isBurning ? 1.0 : 1.25;
   const spawned: EnemySoldier[] = archetypes.map((arch, idx) => {
     const base = SOLDIER_CONFIG[arch];
     const angle = (idx / archetypes.length) * Math.PI * 2;
@@ -1597,6 +1814,7 @@ export function advanceToNextLevel(state: GameState): GameState {
         totalWavesCompletedInLevel: 0,
       },
       objectives: createLevelObjectives(nextLvl),
+      assistedStep: 1,
     },
     `Entered ${LEVEL_CONFIGS[nextLvl].name}! Unlocked ${newElement.toUpperCase()} Element!`,
     'success'
@@ -1605,7 +1823,6 @@ export function advanceToNextLevel(state: GameState): GameState {
 
 export function recoverFromCheckpoint(state: GameState): GameState {
   if (state.defeatReason === 'camp_destroyed') {
-    // Restart current level while preserving unlocked elements and companions
     const base = createInitialGameState(state.level);
     return addNotification(
       {
@@ -1624,7 +1841,6 @@ export function recoverFromCheckpoint(state: GameState): GameState {
     );
   }
 
-  // Player death checkpoint recovery: 15% coin penalty, full HP at camp, clear immediate soldiers
   const coinPenalty = Math.floor(state.player.coins * 0.15);
   return addNotification(
     {
@@ -1708,7 +1924,7 @@ export function stepSimulation(state: GameState, dt: number, playerMovedDist = 0
 
   let next = { ...state };
 
-  // 1. Day / Night Cycle (24-hour cycle every ~4 minutes)
+  // 1. Day / Night Cycle
   next.timeOfDay = (next.timeOfDay + dt * 0.1) % 24;
 
   // 2. Player Energy, Stamina, Cooldowns
@@ -1803,10 +2019,40 @@ export function stepSimulation(state: GameState, dt: number, playerMovedDist = 0
     return c;
   });
 
-  // 6. Immortal Owl & Deer Update
+  // 6. Visual Projectiles Animation Tick
+  next.projectiles = next.projectiles
+    .map((p) => {
+      const prog = p.progress + dt * 3.5;
+      const curX = p.startPos.x + (p.targetPos.x - p.startPos.x) * Math.min(1, prog);
+      const curY = p.startPos.y + (p.targetPos.y - p.startPos.y) * Math.min(1, prog);
+      const curZ = p.startPos.z + (p.targetPos.z - p.startPos.z) * Math.min(1, prog);
+      return {
+        ...p,
+        progress: prog,
+        currentPos: { x: curX, y: curY, z: curZ },
+      };
+    })
+    .filter((p) => p.progress < 1.0);
+
+  // 7. Floating Combat Texts Animation
+  next.floatingTexts = next.floatingTexts
+    .map((ft) => ({
+      ...ft,
+      life: ft.life - dt,
+      position: { ...ft.position, y: ft.position.y + dt * 0.9 },
+    }))
+    .filter((ft) => ft.life > 0);
+
+  // 8. Training Dummy Hit Reaction Recovery
+  next.trainingDummies = next.trainingDummies.map((dm) => ({
+    ...dm,
+    hitReaction: Math.max(0, dm.hitReaction - dt * 2.5),
+  }));
+
+  // 9. Immortal Owl & Deer Update
   next = updateImmortalEncounter(next, dt, playerMovedDist);
 
-  // 7. Teammate Roles (Gather, Heal, Guard) & Tower Defense
+  // 10. Teammate Roles (Gather, Heal, Guard)
   let woodPassive = 0;
   next.teammates = next.teammates.map((ally) => {
     if (ally.incapacitated) return ally;
@@ -1825,7 +2071,7 @@ export function stepSimulation(state: GameState, dt: number, playerMovedDist = 0
     next.inventory = { ...next.inventory, wood: next.inventory.wood + woodPassive };
   }
 
-  // 8. Raid Countdown & Soldier AI
+  // 11. Raid Countdown & Soldier AI
   if (!next.raid.active) {
     const nightPressure = next.timeOfDay >= 19 || next.timeOfDay <= 5 ? 1.35 : 1.0;
     const nextCountdown = next.raid.countdown - dt * nightPressure;
@@ -1836,7 +2082,6 @@ export function stepSimulation(state: GameState, dt: number, playerMovedDist = 0
       next.raid = { ...next.raid, countdown: nextCountdown };
     }
   } else {
-    // Active Raid Soldier AI + Ally/Pet/Tower Defense
     const towerLevel = next.buildings.tower?.level || 0;
     const activePets = next.pets.filter((p) => !p.incapacitated);
     const activeGuards = next.teammates.filter((t) => !t.incapacitated);
@@ -1857,7 +2102,6 @@ export function stepSimulation(state: GameState, dt: number, playerMovedDist = 0
     for (let idx = 0; idx < next.soldiers.length; idx++) {
       const s = next.soldiers[idx];
 
-      // Fail-safe timeout if an enemy ever gets stuck > 65 seconds
       if (now - s.spawnTime > 65000) {
         newDrops.push({
           id: `drop_timeout_${s.id}`,
@@ -1868,7 +2112,6 @@ export function stepSimulation(state: GameState, dt: number, playerMovedDist = 0
         continue;
       }
 
-      // Apply ally/pet/tower defense damage to leading soldier
       let hp = s.hp;
       if (idx === 0 && distance2D(s.position, { x: 0, y: 0, z: 0 }) < 24) {
         hp -= allyDps * dt;
@@ -1884,7 +2127,6 @@ export function stepSimulation(state: GameState, dt: number, playerMovedDist = 0
         continue;
       }
 
-      // Move toward Player or Sanctuary
       const targetPos =
         s.archetype === 'siege' || distance2D(s.position, next.player.position) > 15
           ? next.buildings.sanctuary.position

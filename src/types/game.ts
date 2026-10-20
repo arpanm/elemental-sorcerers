@@ -193,6 +193,33 @@ export interface GameSettings {
   mouseSensitivity: number;
 }
 
+export interface SpellProjectile {
+  id: string;
+  element: ElementType | 'arcane';
+  startPos: Vector3D;
+  targetPos: Vector3D;
+  currentPos: Vector3D;
+  progress: number; // 0 to 1
+  color: number;
+}
+
+export interface FloatingCombatText {
+  id: string;
+  text: string;
+  position: Vector3D;
+  color: string;
+  life: number; // seconds remaining
+}
+
+export interface TrainingDummy {
+  id: string;
+  name: string;
+  position: Vector3D;
+  hp: number;
+  maxHp: number;
+  hitReaction: number;
+}
+
 export interface GameState {
   saveVersion: number;
   screen: 'title' | 'playing' | 'paused' | 'levelComplete' | 'defeat' | 'victory';
@@ -201,6 +228,7 @@ export interface GameState {
   timeOfDay: number; // 0 to 24
   score: number;
   wildlifeViolations: number;
+  assistedStep: number; // 1 = Gather, 2 = Stoke, 3 = Equip/Practice, 4 = Tame, 5 = Defend
 
   player: {
     position: Vector3D;
@@ -240,6 +268,9 @@ export interface GameState {
   teammates: Teammate[];
   soldiers: EnemySoldier[];
   lootDrops: LootDrop[];
+  trainingDummies: TrainingDummy[];
+  projectiles: SpellProjectile[];
+  floatingTexts: FloatingCombatText[];
 
   raid: {
     waveNumber: number;

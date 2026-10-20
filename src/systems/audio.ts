@@ -102,6 +102,10 @@ class SoundController {
     this.playTone(165, 0.55, 'sawtooth', 145);
   }
 
+  public playCampfireIgnite() {
+    this.playTone(220, 0.22, 'triangle', 440);
+  }
+
   public playPenaltyWarning() {
     this.playTone(140, 0.3, 'square', 90);
   }
