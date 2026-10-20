@@ -1,0 +1,6 @@
+{
+  "name": "Elemental Sorcerers",
+  "description": "A 3D fantasy survival adventure game where you explore, gather resources, sustain the camp hearth, tame wild beasts, and wield 5 elements against invading soldier raids.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
