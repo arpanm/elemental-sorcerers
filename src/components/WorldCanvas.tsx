@@ -1,6 +1,5 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { ELEMENT_CONFIG, LEVEL_CONFIGS } from '../config/gameConfig';
 import {
   createCreatureMesh,
@@ -48,10 +47,38 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
   const isDraggingRef = useRef(false);
   const keysPressedRef = useRef<Record<string, boolean>>({});
   const shakeIntensityRef = useRef(0);
+  const [webGlError, setWebGlError] = useState<string | null>(null);
 
   useEffect(() => {
     const container = mountRef.current;
     if (!container) return;
+
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        powerPreference: 'default',
+        alpha: false,
+      });
+    } catch (err: unknown) {
+      console.error('WebGL initialization error:', err);
+      setWebGlError('WebGL could not be initialized in this browser view.');
+      return;
+    }
+
+    const initialWidth = container.clientWidth || window.innerWidth || 800;
+    const initialHeight = container.clientHeight || window.innerHeight || 600;
+
+    renderer.setSize(initialWidth, initialHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.2;
+
+    container.innerHTML = '';
+    container.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
     const levelCfg = LEVEL_CONFIGS[stateRef.current.level] || LEVEL_CONFIGS[1];
@@ -60,33 +87,16 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
 
     const camera = new THREE.PerspectiveCamera(
       58,
-      container.clientWidth / container.clientHeight,
+      initialWidth / initialHeight,
       0.1,
-      180
+      250
     );
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-    renderer.setSize(container.clientWidth, container.clientHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.15;
-
-    // Room Environment for PBR metallic/roughness reflections
-    const pmremGenerator = new THREE.PMREMGenerator(renderer);
-    scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
-    pmremGenerator.dispose();
-
-    container.innerHTML = '';
-    container.appendChild(renderer.domElement);
-
-    // Warm Key Light & Cool Fill Light
-    const hemiLight = new THREE.HemisphereLight(0xe0f2fe, 0x1e293b, 0.7);
+    // Warm Key Light & Sky Ambient Light
+    const hemiLight = new THREE.HemisphereLight(0xe0f2fe, 0x1e293b, 0.85);
     scene.add(hemiLight);
 
-    const dirLight = new THREE.DirectionalLight(0xfffbeb, 1.25);
+    const dirLight = new THREE.DirectionalLight(0xfffbeb, 1.4);
     dirLight.position.set(30, 45, 25);
     dirLight.castShadow = true;
     dirLight.shadow.mapSize.width = 1024;
@@ -95,11 +105,11 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
     dirLight.shadow.normalBias = 0.02;
     scene.add(dirLight);
 
-    const fireLight = new THREE.PointLight(0xf97316, 3.2, 32);
+    const fireLight = new THREE.PointLight(0xf97316, 3.5, 32);
     fireLight.position.set(0, 2.6, 0);
     scene.add(fireLight);
 
-    // Main Forest Terrain (Multi-layer circle with subtle elevation rings)
+    // Main Forest Terrain
     const groundGeo = new THREE.CircleGeometry(70, 48);
     const groundMat = new THREE.MeshStandardMaterial({
       color: levelCfg.groundColor,
@@ -111,7 +121,7 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
     ground.receiveShadow = true;
     scene.add(ground);
 
-    // Natural Perimeter Cliff / Tree Grove boundary (Natural outer barrier)
+    // Natural Perimeter Cliff rocks
     const outerBorderGroup = new THREE.Group();
     for (let i = 0; i < 28; i++) {
       const angle = (i / 28) * Math.PI * 2;
@@ -147,7 +157,6 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
       firePitGroup.add(stone);
     }
 
-    // Burning firewood logs
     const logMat = new THREE.MeshStandardMaterial({ color: 0x3e2723, roughness: 0.9 });
     for (let i = 0; i < 4; i++) {
       const log = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 1.6, 6), logMat);
@@ -157,7 +166,7 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
       firePitGroup.add(log);
     }
 
-    // Dynamic Central Flame with Inner/Outer Glow
+    // Dynamic Central Flame
     const flameMat = new THREE.MeshStandardMaterial({
       color: 0xf97316,
       emissive: 0xea580c,
@@ -182,7 +191,7 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
     auraRing.position.y = 0.06;
     scene.add(auraRing);
 
-    // Floating Golden Quest Waypoint Pillar of Light
+    // Floating Golden Quest Waypoint Pillar
     const waypointGroup = new THREE.Group();
     const beamGeo = new THREE.CylinderGeometry(0.3, 0.3, 40, 16);
     const beamMat = new THREE.MeshBasicMaterial({
@@ -203,7 +212,7 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
     waypointGroup.add(diamondMesh);
     scene.add(waypointGroup);
 
-    // Ambient floating fireflies / magical forest spores
+    // Ambient floating fireflies
     const fireflyCount = 45;
     const fireflyGeo = new THREE.BufferGeometry();
     const fireflyPos = new Float32Array(fireflyCount * 3);
@@ -223,19 +232,19 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
     const fireflyPoints = new THREE.Points(fireflyGeo, fireflyMat);
     scene.add(fireflyPoints);
 
-    // Player Mesh
+    // Player Sorcerer Mesh
     const playerMesh = createSorcererMesh();
     scene.add(playerMesh);
 
-    // Dynamic Entity Groups
+    // Static & Dynamic Entity Groups
     const buildingsGroup = new THREE.Group();
     const nodesGroup = new THREE.Group();
     const chestsGroup = new THREE.Group();
+    const dummiesGroup = new THREE.Group();
     const creaturesGroup = new THREE.Group();
     const petsGroup = new THREE.Group();
     const alliesGroup = new THREE.Group();
     const soldiersGroup = new THREE.Group();
-    const dummiesGroup = new THREE.Group();
     const projectilesGroup = new THREE.Group();
     const dropsGroup = new THREE.Group();
     const immortalGroup = new THREE.Group();
@@ -243,14 +252,96 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
     scene.add(buildingsGroup);
     scene.add(nodesGroup);
     scene.add(chestsGroup);
+    scene.add(dummiesGroup);
     scene.add(creaturesGroup);
     scene.add(petsGroup);
     scene.add(alliesGroup);
     scene.add(soldiersGroup);
-    scene.add(dummiesGroup);
     scene.add(projectilesGroup);
     scene.add(dropsGroup);
     scene.add(immortalGroup);
+
+    // Maps to track dynamic meshes by ID so we don't recreate them every frame
+    const nodeMeshes = new Map<string, THREE.Group>();
+    const chestMeshes = new Map<string, THREE.Mesh>();
+    const dummyMeshes = new Map<string, THREE.Group>();
+    const creatureMeshes = new Map<string, THREE.Group>();
+    const petMeshes = new Map<string, THREE.Group>();
+    const allyMeshes = new Map<string, THREE.Mesh>();
+    const soldierMeshes = new Map<string, THREE.Group>();
+    const projectileMeshes = new Map<string, THREE.Mesh>();
+    const dropMeshes = new Map<string, THREE.Mesh>();
+    const buildingMeshes = new Map<string, THREE.Mesh>();
+
+    let currentLevelTracked = -1;
+
+    // Initial setup of static environment
+    const setupLevelStaticMeshes = (st: GameState) => {
+      currentLevelTracked = st.level;
+
+      // Clean old nodes
+      nodesGroup.clear();
+      nodeMeshes.clear();
+      st.resourceNodes.forEach((n) => {
+        const mesh = createResourceNodeMesh(n.type, st.level);
+        mesh.position.set(n.position.x, 0, n.position.z);
+        mesh.visible = n.amount > 0;
+        nodesGroup.add(mesh);
+        nodeMeshes.set(n.id, mesh);
+      });
+
+      // Clean old chests
+      chestsGroup.clear();
+      chestMeshes.clear();
+      st.chests.forEach((c) => {
+        const chestMesh = new THREE.Mesh(
+          new THREE.BoxGeometry(1.2, 0.85, 0.85),
+          new THREE.MeshStandardMaterial({
+            color: c.rarity === 'rare' ? 0xfacc15 : 0xb45309,
+            emissive: c.rarity === 'rare' ? 0xd97706 : 0x000000,
+            emissiveIntensity: 0.4,
+            metalness: 0.5,
+            roughness: 0.4,
+          })
+        );
+        chestMesh.position.set(c.position.x, 0.42, c.position.z);
+        chestMesh.castShadow = true;
+        chestMesh.visible = !c.opened;
+        chestsGroup.add(chestMesh);
+        chestMeshes.set(c.id, chestMesh);
+      });
+
+      // Clean old dummies
+      dummiesGroup.clear();
+      dummyMeshes.clear();
+      st.trainingDummies.forEach((dm) => {
+        const dGroup = new THREE.Group();
+        const post = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.25, 0.35, 1.8, 6),
+          new THREE.MeshStandardMaterial({ color: 0x5c4033, roughness: 0.8 })
+        );
+        post.position.y = 0.9;
+        post.castShadow = true;
+        dGroup.add(post);
+
+        const head = new THREE.Mesh(
+          new THREE.SphereGeometry(0.35, 8, 8),
+          new THREE.MeshStandardMaterial({
+            color: 0x15803d,
+            roughness: 0.7,
+          })
+        );
+        head.position.y = 2.0;
+        head.name = 'head';
+        dGroup.add(head);
+
+        dGroup.position.set(dm.position.x, 0, dm.position.z);
+        dummiesGroup.add(dGroup);
+        dummyMeshes.set(dm.id, dGroup);
+      });
+    };
+
+    setupLevelStaticMeshes(stateRef.current);
 
     // Click-to-Interact & Raycasting
     const raycaster = new THREE.Raycaster();
@@ -298,10 +389,8 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
         const intersects = raycaster.intersectObjects(targetGroup, true);
 
         if (intersects.length > 0 && intersects[0].distance <= 18) {
-          // Clicked on a gatherable tree, rock, bush, campfire hearth, or creature!
           callbacksRef.current.onContextInteract();
         } else {
-          // Clicked anywhere else (or on dummy / soldier / ground / air):
           shakeIntensityRef.current = 0.15;
           callbacksRef.current.onPrimaryAttack();
         }
@@ -327,29 +416,65 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
       keysPressedRef.current[e.code] = false;
     };
 
-    const onResize = () => {
+    const updateDimensions = () => {
       if (!container) return;
-      camera.aspect = container.clientWidth / container.clientHeight;
+      const w = container.clientWidth || window.innerWidth || 800;
+      const h = container.clientHeight || window.innerHeight || 600;
+      camera.aspect = w / h;
       camera.updateProjectionMatrix();
-      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setSize(w, h);
     };
+
+    const resizeObserver = new ResizeObserver(() => updateDimensions());
+    resizeObserver.observe(container);
+    window.addEventListener('resize', updateDimensions);
 
     renderer.domElement.addEventListener('mousedown', onPointerDown);
     window.addEventListener('mouseup', onPointerUp);
     window.addEventListener('mousemove', onPointerMove);
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
-    window.addEventListener('resize', onResize);
 
     let lastTime = performance.now();
     let animFrameId = 0;
 
-    const rebuildDynamicEntities = (st: GameState) => {
-      const lvCfg = LEVEL_CONFIGS[st.level] || LEVEL_CONFIGS[1];
-      (ground.material as THREE.MeshStandardMaterial).color.setHex(lvCfg.groundColor);
-      scene.background = new THREE.Color(lvCfg.skyColor);
+    // Lightweight dynamic update loop (only updates transforms, never recreates static geometries)
+    const updateDynamicScene = (st: GameState) => {
+      if (st.level !== currentLevelTracked) {
+        setupLevelStaticMeshes(st);
+      }
 
-      // Campfire visual animation
+      // 1. Update Resource Nodes visibility
+      st.resourceNodes.forEach((n) => {
+        const mesh = nodeMeshes.get(n.id);
+        if (mesh) mesh.visible = n.amount > 0;
+      });
+
+      // 2. Update Chests visibility
+      st.chests.forEach((c) => {
+        const mesh = chestMeshes.get(c.id);
+        if (mesh) mesh.visible = !c.opened;
+      });
+
+      // 3. Update Dummies
+      st.trainingDummies.forEach((dm) => {
+        const dg = dummyMeshes.get(dm.id);
+        if (dg) {
+          const head = dg.getObjectByName('head') as THREE.Mesh | undefined;
+          if (head && head.material) {
+            (head.material as THREE.MeshStandardMaterial).color.setHex(
+              dm.hitReaction > 0 ? 0xef4444 : 0x15803d
+            );
+          }
+          if (dm.hitReaction > 0) {
+            dg.rotation.z = Math.sin(performance.now() * 0.05) * 0.25;
+          } else {
+            dg.rotation.z = 0;
+          }
+        }
+      });
+
+      // 4. Update Campfire & Aura
       flameMesh.visible = st.campfire.isBurning;
       const pulse = 0.9 + Math.sin(performance.now() * 0.009) * 0.15;
       flameMesh.scale.set(pulse, pulse * (0.6 + st.campfire.fuel / st.campfire.maxFuel), pulse);
@@ -359,132 +484,95 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
       auraRing.scale.set(auraScale, auraScale, 1);
       auraRing.visible = st.campfire.isBurning;
 
-      // Update Waypoint Beam position to assisted target
-      let waypointTarget: { x: number; z: number } = { x: 0, z: 0 };
+      // 5. Update Waypoint Target
+      let waypointTarget = { x: 0, z: 0 };
       if (st.assistedStep === 1) {
-        // Nearest available wood node
         const node = st.resourceNodes.find((n) => n.amount > 0 && n.type === 'wood') || st.resourceNodes[0];
         if (node) waypointTarget = { x: node.position.x, z: node.position.z };
       } else if (st.assistedStep === 2) {
-        // Central Campfire
         waypointTarget = { x: 0, z: 0 };
       } else if (st.assistedStep === 3) {
-        // Weapon shop / training dummy
         const dummy = st.trainingDummies[0];
-        waypointTarget = dummy ? { x: dummy.position.x, z: dummy.position.z } : { x: 6, z: -10 };
+        waypointTarget = dummy ? { x: dummy.position.x, z: dummy.position.z } : { x: 0, z: 9 };
       } else if (st.assistedStep === 4) {
-        // Target wild creature
         const c = st.wildCreatures[0];
         if (c) waypointTarget = { x: c.position.x, z: c.position.z };
       } else if (st.soldiers.length > 0) {
-        // Leading soldier in raid
         const s = st.soldiers[0];
         waypointTarget = { x: s.position.x, z: s.position.z };
       }
       waypointGroup.position.set(waypointTarget.x, 0, waypointTarget.z);
       diamondMesh.rotation.y = performance.now() * 0.002;
 
-      // Animate Sorcerer Staff Orb
+      // 6. Update Sorcerer Staff Orb
       const staffOrb = playerMesh.getObjectByName('staffOrb');
       if (staffOrb) {
         staffOrb.rotation.y += 0.04;
         staffOrb.rotation.x += 0.02;
         const activeCfg = ELEMENT_CONFIG[st.player.activeElement];
-        (staffOrb as THREE.Mesh).material = new THREE.MeshStandardMaterial({
-          color: activeCfg.hex,
-          emissive: activeCfg.hex,
-          emissiveIntensity: 0.9,
-        });
+        if ((staffOrb as THREE.Mesh).material) {
+          ((staffOrb as THREE.Mesh).material as THREE.MeshStandardMaterial).color.setHex(activeCfg.hex);
+          ((staffOrb as THREE.Mesh).material as THREE.MeshStandardMaterial).emissive.setHex(activeCfg.hex);
+        }
       }
 
-      // Buildings
-      buildingsGroup.clear();
+      // 7. Update Buildings
       (Object.keys(st.buildings) as BuildingId[]).forEach((bId) => {
         const b = st.buildings[bId];
-        if (b.level <= 0) return;
-        const bMesh = new THREE.Mesh(
-          new THREE.BoxGeometry(2.4, 1.6 + b.level * 0.45, 2.4),
-          new THREE.MeshStandardMaterial({
-            color: bId === 'sanctuary' ? 0x4f46e5 : bId === 'hospital' ? 0x059669 : 0x475569,
-            roughness: 0.7,
-            metalness: 0.2,
-          })
-        );
-        bMesh.position.set(b.position.x, (1.6 + b.level * 0.45) / 2, b.position.z);
-        bMesh.castShadow = true;
-        bMesh.receiveShadow = true;
-        buildingsGroup.add(bMesh);
-      });
-
-      // Resource Nodes
-      nodesGroup.clear();
-      st.resourceNodes.forEach((n) => {
-        if (n.amount <= 0) return;
-        const mesh = createResourceNodeMesh(n.type, st.level);
-        mesh.position.set(n.position.x, 0, n.position.z);
-        nodesGroup.add(mesh);
-      });
-
-      // Chests
-      chestsGroup.clear();
-      st.chests.forEach((c) => {
-        if (c.opened) return;
-        const chestMesh = new THREE.Mesh(
-          new THREE.BoxGeometry(1.2, 0.85, 0.85),
-          new THREE.MeshStandardMaterial({
-            color: c.rarity === 'rare' ? 0xfacc15 : 0xb45309,
-            emissive: c.rarity === 'rare' ? 0xd97706 : 0x000000,
-            emissiveIntensity: 0.4,
-            metalness: 0.5,
-            roughness: 0.4,
-          })
-        );
-        chestMesh.position.set(c.position.x, 0.42, c.position.z);
-        chestMesh.castShadow = true;
-        chestsGroup.add(chestMesh);
-      });
-
-      // Training Dummies
-      dummiesGroup.clear();
-      st.trainingDummies.forEach((dm) => {
-        const dGroup = new THREE.Group();
-        const post = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.25, 0.35, 1.8, 6),
-          new THREE.MeshStandardMaterial({ color: 0x5c4033, roughness: 0.8 })
-        );
-        post.position.y = 0.9;
-        post.castShadow = true;
-        dGroup.add(post);
-
-        const head = new THREE.Mesh(
-          new THREE.SphereGeometry(0.35, 8, 8),
-          new THREE.MeshStandardMaterial({
-            color: dm.hitReaction > 0 ? 0xef4444 : 0x15803d,
-            roughness: 0.7,
-          })
-        );
-        head.position.y = 2.0;
-        dGroup.add(head);
-
-        dGroup.position.set(dm.position.x, 0, dm.position.z);
-        if (dm.hitReaction > 0) {
-          dGroup.rotation.z = Math.sin(performance.now() * 0.05) * 0.25;
+        let mesh = buildingMeshes.get(bId);
+        if (!mesh && b.level > 0) {
+          mesh = new THREE.Mesh(
+            new THREE.BoxGeometry(2.4, 2.0, 2.4),
+            new THREE.MeshStandardMaterial({
+              color: bId === 'sanctuary' ? 0x4f46e5 : bId === 'hospital' ? 0x059669 : 0x475569,
+              roughness: 0.7,
+              metalness: 0.2,
+            })
+          );
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          buildingsGroup.add(mesh);
+          buildingMeshes.set(bId, mesh);
         }
-        dummiesGroup.add(dGroup);
+        if (mesh) {
+          mesh.visible = b.level > 0;
+          mesh.position.set(b.position.x, (1.6 + b.level * 0.45) / 2, b.position.z);
+        }
       });
 
-      // Wild Creatures
-      creaturesGroup.clear();
+      // 8. Update Wild Creatures
+      const wildIds = new Set(st.wildCreatures.map((c) => c.id));
+      for (const [id, m] of creatureMeshes.entries()) {
+        if (!wildIds.has(id)) {
+          creaturesGroup.remove(m);
+          creatureMeshes.delete(id);
+        }
+      }
       st.wildCreatures.forEach((wc) => {
-        const cm = createCreatureMesh(wc.species);
+        let cm = creatureMeshes.get(wc.id);
+        if (!cm) {
+          cm = createCreatureMesh(wc.species);
+          creaturesGroup.add(cm);
+          creatureMeshes.set(wc.id, cm);
+        }
         cm.position.set(wc.position.x, 0, wc.position.z);
-        creaturesGroup.add(cm);
       });
 
-      // Tamed Pets
-      petsGroup.clear();
+      // 9. Update Pets
+      const petIds = new Set(st.pets.map((p) => p.id));
+      for (const [id, m] of petMeshes.entries()) {
+        if (!petIds.has(id)) {
+          petsGroup.remove(m);
+          petMeshes.delete(id);
+        }
+      }
       st.pets.forEach((pet, idx) => {
-        const pm = createCreatureMesh(pet.species);
+        let pm = petMeshes.get(pet.id);
+        if (!pm) {
+          pm = createCreatureMesh(pet.species);
+          petsGroup.add(pm);
+          petMeshes.set(pet.id, pm);
+        }
         const px =
           pet.command === 'follow'
             ? st.player.position.x + Math.cos(idx * 2.1) * 2.8
@@ -494,89 +582,95 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
             ? st.player.position.z + Math.sin(idx * 2.1) * 2.8
             : Math.sin(idx * 1.7) * 6;
         pm.position.set(px, 0, pz);
-        petsGroup.add(pm);
       });
 
-      // Teammates
-      alliesGroup.clear();
+      // 10. Update Teammates
       st.teammates.forEach((ally) => {
-        const am = new THREE.Mesh(
-          new THREE.CapsuleGeometry(0.4, 1.2, 4, 8),
-          new THREE.MeshStandardMaterial({
-            color: ally.role === 'heal' ? 0x10b981 : ally.role === 'gather' ? 0xf59e0b : 0x38bdf8,
-            roughness: 0.6,
-          })
-        );
+        let am = allyMeshes.get(ally.id);
+        if (!am) {
+          am = new THREE.Mesh(
+            new THREE.CapsuleGeometry(0.4, 1.2, 4, 8),
+            new THREE.MeshStandardMaterial({
+              color: ally.role === 'heal' ? 0x10b981 : ally.role === 'gather' ? 0xf59e0b : 0x38bdf8,
+              roughness: 0.6,
+            })
+          );
+          am.castShadow = true;
+          alliesGroup.add(am);
+          allyMeshes.set(ally.id, am);
+        }
         am.position.set(ally.position.x, 1.0, ally.position.z);
-        am.castShadow = true;
-        alliesGroup.add(am);
+        am.visible = !ally.incapacitated;
       });
 
-      // Enemy Soldiers
-      soldiersGroup.clear();
+      // 11. Update Enemy Soldiers
+      const soldierIds = new Set(st.soldiers.map((s) => s.id));
+      for (const [id, m] of soldierMeshes.entries()) {
+        if (!soldierIds.has(id)) {
+          soldiersGroup.remove(m);
+          soldierMeshes.delete(id);
+        }
+      }
       st.soldiers.forEach((s) => {
-        const sm = createSoldierMesh(s.archetype);
+        let sm = soldierMeshes.get(s.id);
+        if (!sm) {
+          sm = createSoldierMesh(s.archetype);
+          soldiersGroup.add(sm);
+          soldierMeshes.set(s.id, sm);
+        }
         sm.position.set(s.position.x, 0, s.position.z);
-        soldiersGroup.add(sm);
       });
 
-      // Spell Projectiles
-      projectilesGroup.clear();
+      // 12. Update Spell Projectiles
+      const projIds = new Set(st.projectiles.map((p) => p.id));
+      for (const [id, m] of projectileMeshes.entries()) {
+        if (!projIds.has(id)) {
+          projectilesGroup.remove(m);
+          projectileMeshes.delete(id);
+        }
+      }
       st.projectiles.forEach((p) => {
-        const pSphere = new THREE.Mesh(
-          new THREE.OctahedronGeometry(0.35, 1),
-          new THREE.MeshStandardMaterial({
-            color: p.color,
-            emissive: p.color,
-            emissiveIntensity: 1.2,
-          })
-        );
-        pSphere.position.set(p.currentPos.x, p.currentPos.y, p.currentPos.z);
-        projectilesGroup.add(pSphere);
+        let pm = projectileMeshes.get(p.id);
+        if (!pm) {
+          pm = new THREE.Mesh(
+            new THREE.OctahedronGeometry(0.35, 1),
+            new THREE.MeshStandardMaterial({
+              color: p.color,
+              emissive: p.color,
+              emissiveIntensity: 1.2,
+            })
+          );
+          projectilesGroup.add(pm);
+          projectileMeshes.set(p.id, pm);
+        }
+        pm.position.set(p.currentPos.x, p.currentPos.y, p.currentPos.z);
       });
 
-      // Loot Drops
-      dropsGroup.clear();
+      // 13. Update Loot Drops
+      const dropIds = new Set(st.lootDrops.filter((d) => !d.collected).map((d) => d.id));
+      for (const [id, m] of dropMeshes.entries()) {
+        if (!dropIds.has(id)) {
+          dropsGroup.remove(m);
+          dropMeshes.delete(id);
+        }
+      }
       st.lootDrops.forEach((d) => {
         if (d.collected) return;
-        const orb = new THREE.Mesh(
-          new THREE.OctahedronGeometry(0.45, 0),
-          new THREE.MeshStandardMaterial({
-            color: 0xfacc15,
-            emissive: 0xfacc15,
-            emissiveIntensity: 0.8,
-          })
-        );
-        orb.position.set(d.position.x, 0.6 + Math.sin(performance.now() * 0.005) * 0.15, d.position.z);
-        dropsGroup.add(orb);
+        let dm = dropMeshes.get(d.id);
+        if (!dm) {
+          dm = new THREE.Mesh(
+            new THREE.OctahedronGeometry(0.45, 0),
+            new THREE.MeshStandardMaterial({
+              color: 0xfacc15,
+              emissive: 0xfacc15,
+              emissiveIntensity: 0.8,
+            })
+          );
+          dropsGroup.add(dm);
+          dropMeshes.set(d.id, dm);
+        }
+        dm.position.set(d.position.x, 0.6 + Math.sin(performance.now() * 0.005) * 0.15, d.position.z);
       });
-
-      // Immortal Owl or Deer Encounter
-      immortalGroup.clear();
-      if (st.immortalEncounter.activeType !== 'none') {
-        const imMesh = createCreatureMesh(st.immortalEncounter.activeType);
-        imMesh.position.set(
-          st.immortalEncounter.originPosition.x,
-          st.immortalEncounter.activeType === 'owl' ? 2.5 : 0,
-          st.immortalEncounter.originPosition.z
-        );
-        immortalGroup.add(imMesh);
-
-        const ring = new THREE.Mesh(
-          new THREE.RingGeometry(17.5, 18.0, 48),
-          new THREE.MeshBasicMaterial({
-            color: st.immortalEncounter.activeType === 'owl' ? 0xef4444 : 0xfacc15,
-            side: THREE.DoubleSide,
-          })
-        );
-        ring.rotation.x = -Math.PI / 2;
-        ring.position.set(
-          st.immortalEncounter.originPosition.x,
-          0.08,
-          st.immortalEncounter.originPosition.z
-        );
-        immortalGroup.add(ring);
-      }
     };
 
     const animate = () => {
@@ -624,10 +718,10 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
 
         // Day/Night lighting factor
         const daySin = Math.sin(((st.timeOfDay - 6) / 24) * Math.PI * 2);
-        dirLight.intensity = Math.max(0.25, 0.85 + daySin * 0.55);
-        hemiLight.intensity = Math.max(0.3, 0.6 + daySin * 0.25);
+        dirLight.intensity = Math.max(0.35, 0.95 + daySin * 0.5);
+        hemiLight.intensity = Math.max(0.4, 0.7 + daySin * 0.25);
 
-        // Third-person camera follow with subtle camera shake
+        // Third-person camera follow
         let shakeX = 0;
         let shakeY = 0;
         if (shakeIntensityRef.current > 0 && !st.settings.reducedCameraShake) {
@@ -647,7 +741,7 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
         camera.lookAt(nextX, 1.6, nextZ);
       }
 
-      rebuildDynamicEntities(st);
+      updateDynamicScene(st);
       renderer.render(scene, camera);
     };
 
@@ -655,17 +749,29 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
 
     return () => {
       cancelAnimationFrame(animFrameId);
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', updateDimensions);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('mouseup', onPointerUp);
       window.removeEventListener('mousemove', onPointerMove);
-      window.removeEventListener('resize', onResize);
       renderer.dispose();
     };
   }, []);
 
   const st = gameState;
   const activeElCfg = ELEMENT_CONFIG[st.player.activeElement];
+
+  if (webGlError) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-slate-950 text-white p-6">
+        <div className="bg-rose-950/80 border border-rose-500 rounded-2xl p-6 max-w-md text-center">
+          <div className="text-xl font-bold mb-2">Graphics Display Alert</div>
+          <p className="text-sm text-slate-300 mb-4">{webGlError}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative w-full h-full">
